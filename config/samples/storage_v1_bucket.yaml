@@ -1,0 +1,7 @@
+apiVersion: storage.k8s.riveiro.io/v1
+kind: Bucket
+metadata:
+  name: bucket-sample
+spec:
+  # Add fields here
+  foo: bar

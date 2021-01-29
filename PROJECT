@@ -1,0 +1,7 @@
+domain: k8s.riveiro.io
+repo: gitlab.com/yriveiro/bucket-operator
+resources:
+- group: storage
+  kind: Bucket
+  version: v1
+version: "2"
