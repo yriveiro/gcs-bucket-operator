@@ -30,14 +30,14 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 )
 
-// StopReconciler indicates if we should continue the operation of reconcile
-// or stop it.
+// StopReconciler indicates if the inner operation signaled to stop the reconcile
+// or not.
 type StopReconciler bool
 
-// BucketOperatorOpNotAllowed custom error for operations not allowed by the
-// defined state.
+// BucketOperatorOpNotAllowed custom error for operations not allowed.
 type BucketOperatorOpNotAllowed struct{}
 
+// Error implementation of Error Interface
 func (e *BucketOperatorOpNotAllowed) Error() string {
 	return "operation not allowed"
 }
@@ -46,12 +46,13 @@ func (e *BucketOperatorOpNotAllowed) Error() string {
 // is deleted.
 const Finalizer = "bucket.storage.k8s.riveiro.io/finalizer"
 
-// CurrentBucketAnnotation is a annotation to keep tracking of the original
+// BucketAnnotation is a annotation to keep tracking of the original
 // bucket created by the resource.
-const CurrentBucketAnnotation = "bucket.storage.k8s.riveiro.io/currentBucket"
+const BucketAnnotation = "storage.k8s.riveiro.io/bucket"
 
-// BucketOwner annotation to ensures no other CR can delete the bucket.
-const BucketOwner = "bucket-storage-k8s-riveiro-io-owner"
+// BucketOwnerLabel is a label to ensure we're labeling buckets in GCS
+// with the proper owner and allow tracing.
+const BucketOwnerLabel = "bucket-storage-k8s-riveiro-io-owner"
 
 // BucketReconciler reconciles a Bucket object
 type BucketReconciler struct {
@@ -137,10 +138,10 @@ func (r *BucketReconciler) handleAnnotations(ctx context.Context, b *storagev1.B
 		a = make(map[string]string, 1)
 	}
 
-	if _, ok := a[CurrentBucketAnnotation]; !ok {
-		l.Info("add annotation ", CurrentBucketAnnotation, b.Spec.Name)
+	if _, ok := a[BucketAnnotation]; !ok {
+		l.Info("add annotation", BucketAnnotation, b.Spec.Name)
 
-		a[CurrentBucketAnnotation] = b.Spec.Name
+		a[BucketAnnotation] = b.Spec.Name
 		b.SetAnnotations(a)
 
 		if err := r.Update(context.Background(), b); err != nil {
@@ -148,12 +149,12 @@ func (r *BucketReconciler) handleAnnotations(ctx context.Context, b *storagev1.B
 			return false, err
 		}
 	} else {
-		if a[CurrentBucketAnnotation] != b.Spec.Name {
+		if a[BucketAnnotation] != b.Spec.Name {
 			// To ensure integrity it's not possible to update the Spec.Name
 			// value once the GCP bucket is created.
 
 			err := &BucketOperatorOpNotAllowed{}
-			l.Error(err, "update Bucket.Spec.Name is not allowed, create a new resource instead")
+			l.Error(err, "update bucket.spec.name is not allowed, create a new resource instead")
 
 			// Stop the reconciliation once the desired state is not allowed.
 			return true, nil
@@ -171,7 +172,7 @@ func (r *BucketReconciler) handleDeleteNotification(ctx context.Context, b *stor
 
 	}
 
-	l.Info("deleted notification", "Bucket.Spec.Name", b.Spec.Name)
+	l.Info("deleted notification", "bucket.spec.name", b.Spec.Name)
 
 	if containsString(b.ObjectMeta.Finalizers, Finalizer) {
 		if b.Spec.RemoveOnDelete {
@@ -203,18 +204,18 @@ func (r *BucketReconciler) deleteBucket(ctx context.Context, b *storagev1.Bucket
 	a, err := bkt.Attrs(ctx)
 
 	if err == storage.ErrBucketNotExist {
-		l.Info("bucket not exist, skipping deletion", "bucket", b.Spec.Name)
+		l.Info("bucket not exist, skipping deletion", "bucket.spec.name", b.Spec.Name)
 
 		return nil
 	}
 
-	if _, ok := a.Labels[BucketOwner]; !ok {
+	if _, ok := a.Labels[BucketOwnerLabel]; !ok {
 		err := &BucketOperatorOpNotAllowed{}
 
 		l.Error(err, "missing 'owner' label, can't delete on safety")
 
 		return err
-	} else if a.Labels[BucketOwner] != b.GetObjectMeta().GetName() {
+	} else if a.Labels[BucketOwnerLabel] != b.GetObjectMeta().GetName() {
 		err := &BucketOperatorOpNotAllowed{}
 
 		l.Error(err, "mismatch in bucket ownership, can't delete on safety")
@@ -227,7 +228,7 @@ func (r *BucketReconciler) deleteBucket(ctx context.Context, b *storagev1.Bucket
 		return err
 	}
 
-	l.Info("bucket deleted", "bucket", b.Spec.Name)
+	l.Info("bucket deleted", "bucket.spec.name", b.Spec.Name)
 
 	return nil
 }
@@ -243,7 +244,7 @@ func (r *BucketReconciler) handleCreateOrUpdateNotification(ctx context.Context,
 
 		l.Info("bucket not found, creating bucket", "bucket.Spec.Name", b.Spec.Name)
 
-		labels := map[string]string{BucketOwner: b.ObjectMeta.GetName()}
+		labels := map[string]string{BucketOwnerLabel: b.ObjectMeta.GetName()}
 
 		l.Info(fmt.Sprintf("%s", labels))
 
@@ -260,9 +261,9 @@ func (r *BucketReconciler) handleCreateOrUpdateNotification(ctx context.Context,
 			a = make(map[string]string, 1)
 		}
 
-		l.Info("add annotation", "currentBucket", a[CurrentBucketAnnotation])
+		l.Info("add annotation", "currentBucket", a[BucketAnnotation])
 
-		a[CurrentBucketAnnotation] = b.Spec.Name
+		a[BucketAnnotation] = b.Spec.Name
 		b.SetAnnotations(a)
 
 		if err := r.Update(context.Background(), b); err != nil {
