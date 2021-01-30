@@ -1,5 +1,5 @@
 domain: k8s.riveiro.io
-repo: gitlab.com/yriveiro/bucket-operator
+repo: github.com/yriveiro/gcs-bucket-operator
 resources:
 - group: storage
   kind: Bucket
