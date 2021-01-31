@@ -28,8 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	storagev1 "gitlab.com/riveiro/bucket-operator/api/v1"
-	"gitlab.com/riveiro/bucket-operator/controllers"
+	storagev1 "github.com/yriveiro/gcs-bucket-operator/api/v1alpha1"
+	"github.com/yriveiro/gcs-bucket-operator/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -79,6 +79,7 @@ func main() {
 		StorageClient: storageClient,
 		Log:           ctrl.Log.WithName("controllers").WithName("Bucket"),
 		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("bucket-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Bucket")
 		os.Exit(1)

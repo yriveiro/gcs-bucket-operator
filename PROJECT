@@ -3,5 +3,5 @@ repo: github.com/yriveiro/gcs-bucket-operator
 resources:
 - group: storage
   kind: Bucket
-  version: v1
+  version: v1alpha1
 version: "2"

@@ -1,5 +1,6 @@
 /*
 
+Copyright 2021 Yago Riveiro <yago.riveiro@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,9 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha1
 
 import (
+	"cloud.google.com/go/storage"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -46,7 +48,19 @@ type BucketSpec struct {
 
 // BucketStatus defines the observed state of Bucket
 type BucketStatus struct {
+	GCSBucketRef string `json:"gcsBucketRef,omitempty"`
 }
+
+// BucketFinalizerName is the name of the bucket finalizer
+const BucketFinalizerName = "bucket.storage.k8s.riveiro.io/finalizer"
+
+// BucketOwnerLabel is a label to ensure we're labeling buckets in GCS
+// with the proper owner and allow tracing.
+const BucketOwnerLabel = "bucket-storage-k8s-riveiro-io-owner"
+
+// BucketAnnotation is a annotation to keep tracking of the original
+// bucket created by the resource.
+const BucketAnnotation = "storage.k8s.riveiro.io/bucket"
 
 // +kubebuilder:object:root=true
 
@@ -57,6 +71,46 @@ type Bucket struct {
 
 	Spec   BucketSpec   `json:"spec,omitempty"`
 	Status BucketStatus `json:"status,omitempty"`
+}
+
+// IsBeingDeleted returns true if a deletion timestamp is set
+func (b *Bucket) IsBeingDeleted() bool {
+	return !b.ObjectMeta.DeletionTimestamp.IsZero()
+}
+
+// HasFinalizer returns true if the item has the specified finalizer
+func (b *Bucket) HasFinalizer(finalizerName string) bool {
+	return containsString(b.ObjectMeta.Finalizers, finalizerName)
+}
+
+// AddFinalizer adds the specified finalizer
+func (b *Bucket) AddFinalizer(finalizerName string) {
+	b.ObjectMeta.Finalizers = append(b.ObjectMeta.Finalizers, finalizerName)
+}
+
+// RemoveFinalizer removes the specified finalizer
+func (b *Bucket) RemoveFinalizer(finalizerName string) {
+	b.ObjectMeta.Finalizers = removeString(b.ObjectMeta.Finalizers, finalizerName)
+}
+
+// Owned checks if the resource is owner of the bucket
+func (b *Bucket) Owned(a *storage.BucketAttrs) bool {
+	if _, ok := a.Labels[BucketOwnerLabel]; !ok {
+		return false
+	}
+
+	return a.Labels[BucketOwnerLabel] == b.GetObjectMeta().GetName()
+}
+
+// IsGCSBucketRefValid check if the resource already has a ref with a
+// GCS bucket
+func (b *Bucket) IsGCSBucketRefValid() bool {
+	if b.Status.GCSBucketRef == "" {
+		// not binded with any GCS bucket yet.
+		return true
+	}
+
+	return b.Status.GCSBucketRef == b.Spec.Name
 }
 
 // +kubebuilder:object:root=true
