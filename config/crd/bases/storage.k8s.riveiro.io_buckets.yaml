@@ -13,8 +13,12 @@ spec:
     kind: Bucket
     listKind: BucketList
     plural: buckets
+    shortNames:
+    - bk
     singular: bucket
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: Bucket is theSchema for the buckets API

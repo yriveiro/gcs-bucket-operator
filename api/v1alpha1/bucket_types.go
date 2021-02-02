@@ -63,6 +63,8 @@ const BucketOwnerLabel = "bucket-storage-k8s-riveiro-io-owner"
 const BucketAnnotation = "storage.k8s.riveiro.io/bucket"
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=bk
+// +kubebuilder:subresource:status
 
 // Bucket is theSchema for the buckets API
 type Bucket struct {
